@@ -1,0 +1,1736 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImobiFlow 2.0 - Funil de Vendas Imobiliárias</title>
+    <!-- Tailwind CSS para Estilização Moderna -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome para Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- SDKs do Google para Login e Integração com Drive -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar para as colunas horizontais do Kanban */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 8px;
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0f172a;
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        
+        /* Drag and Drop visual indicator styling */
+        .column-drag-over {
+            background-color: rgba(99, 102, 241, 0.12) !important;
+            border: 2px dashed #6366f1 !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 h-screen w-screen flex flex-col overflow-hidden">
+
+    <!-- Tela de Bloqueio/Login Obrigatório com Google -->
+    <div id="google-login-overlay" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 transition-opacity duration-300">
+        <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center space-y-6 shadow-2xl shadow-indigo-500/5">
+            <div class="inline-flex bg-indigo-600/10 p-4 rounded-full border border-indigo-500/20">
+                <i class="fa-solid fa-house-laptop text-4xl text-indigo-400 animate-pulse"></i>
+            </div>
+            
+            <div class="space-y-2">
+                <h2 class="text-2xl font-bold tracking-tight text-white">Acesse o ImobiFlow</h2>
+                <p class="text-sm text-slate-400">Entre com sua Conta Google para carregar e salvar seu funil de vendas com total segurança no seu próprio Google Drive.</p>
+            </div>
+
+            <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 text-xs text-slate-400 text-left space-y-2 leading-relaxed">
+                <span class="font-semibold text-slate-300 block mb-1">🛡️ Privacidade Garantida:</span>
+                <p>Nenhum dado é enviado para servidores de terceiros. Seu banco de dados é salvo exclusivamente dentro de uma pasta dedicada chamada <code class="bg-slate-900 px-1.5 py-0.5 rounded text-indigo-400 font-mono font-bold">Imobiflow_data</code> em seu Google Drive pessoal.</p>
+            </div>
+
+            <button onclick="googleLogin()" class="w-full bg-white hover:bg-slate-100 text-slate-900 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center space-x-3 transition shadow-lg text-sm">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" class="w-5 h-5">
+                <span>Logar com o Google</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Header principal -->
+    <header class="bg-slate-950 border-b border-slate-800 px-6 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between shrink-0 gap-4">
+        <div class="flex items-center justify-between w-full lg:w-auto">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/20 flex items-center justify-center">
+                    <i class="fa-solid fa-house-laptop text-xl text-white animate-pulse"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                        ImobiFlow <span class="text-xs bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded font-mono font-bold">CRM KANBAN v2.0</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Funil de Vendas com Armazenamento Google Cloud</p>
+                </div>
+            </div>
+            
+            <!-- Botão de Novo Lead visível no Mobile no topo -->
+            <button onclick="openModal()" class="lg:hidden bg-indigo-600 hover:bg-indigo-500 text-white font-medium p-2.5 rounded-lg flex items-center justify-center transition shadow-md shadow-indigo-600/10" title="Novo Lead">
+                <i class="fa-solid fa-plus text-base"></i>
+            </button>
+        </div>
+
+        <!-- Painel de Login / Status Google Cloud -->
+        <div class="flex flex-wrap items-center gap-3">
+            <div id="google-user-badge" class="hidden flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1.5 pr-3 space-x-2">
+                <img id="google-user-pic" src="" alt="Perfil" class="w-7 h-7 rounded-full border border-indigo-500">
+                <div class="text-left">
+                    <span id="google-user-name" class="block text-xs font-semibold text-white leading-tight">Carregando...</span>
+                    <span class="text-[10px] text-emerald-400 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span> Drive Ativo
+                    </span>
+                </div>
+                <button onclick="googleLogout()" title="Sair da Conta Google" class="text-slate-400 hover:text-rose-400 transition pl-2">
+                    <i class="fa-solid fa-right-from-bracket text-xs"></i>
+                </button>
+            </div>
+
+            <button id="btn-google-login" onclick="googleLogin()" class="bg-white hover:bg-slate-100 text-slate-900 font-bold px-4 py-2 rounded-lg flex items-center space-x-2 transition shadow-md text-xs">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" class="w-4 h-4">
+                <span>Logar com o Google</span>
+            </button>
+            
+            <button onclick="openCloudModal()" title="Configurações de Nuvem do Usuário" class="bg-slate-900 hover:bg-slate-800 text-slate-300 p-2.5 border border-slate-800 rounded-lg transition">
+                <i class="fa-solid fa-sliders"></i>
+            </button>
+        </div>
+
+        <!-- Métricas Rápidas do Funil -->
+        <div class="flex flex-wrap items-center gap-3 text-xs w-full lg:w-auto">
+            <div class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 flex-1 lg:flex-none min-w-[110px]">
+                <span class="text-slate-400 block mb-0.5">VGV Ativo (Pipeline)</span>
+                <span id="stat-pipeline-val" class="text-indigo-400 font-bold text-sm">R$ 0,00</span>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 flex-1 lg:flex-none min-w-[90px]">
+                <span class="text-slate-400 block mb-0.5">Leads Ativos</span>
+                <span id="stat-active-count" class="text-emerald-400 font-bold text-sm">0</span>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 flex-1 lg:flex-none min-w-[110px]">
+                <span class="text-slate-400 block mb-0.5">Vendas Concluídas</span>
+                <span id="stat-sales-val" class="text-amber-400 font-bold text-sm">R$ 0,00</span>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 flex-1 lg:flex-none min-w-[100px]">
+                <span class="text-slate-400 block mb-0.5">Pendentes Hoje 📅</span>
+                <span id="stat-pending-today" class="text-rose-400 font-bold text-sm">0</span>
+            </div>
+            
+            <!-- Botão de Integração Google Sheets -->
+            <div class="flex items-center bg-emerald-600/10 border border-emerald-500/30 rounded-lg p-1 gap-1">
+                <button onclick="openSheetsModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-2.5 py-1.5 rounded-md flex items-center gap-1.5 transition text-[11px]">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <span>Planilha</span>
+                </button>
+                <button onclick="openGoogleSheet()" id="btn-open-sheet" class="bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold px-2 py-1.5 rounded-md transition text-[11px]" title="Abrir Planilha Google">
+                    <i class="fa-solid fa-external-link"></i>
+                </button>
+            </div>
+
+            <button onclick="openModal()" class="hidden lg:flex bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2 rounded-lg items-center space-x-2 transition shadow-md shadow-indigo-600/10">
+                <i class="fa-solid fa-plus text-xs"></i>
+                <span>Novo Lead</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Barra de Ferramentas / Filtros -->
+    <div class="bg-slate-950/50 border-b border-slate-800/80 px-6 py-3 flex flex-col md:flex-row md:items-center justify-between shrink-0 gap-3">
+        <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <!-- Campo de Busca -->
+            <div class="relative w-full md:w-60">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                    <i class="fa-solid fa-magnifying-glass text-sm"></i>
+                </span>
+                <input type="text" id="search-input" oninput="applyFilters()" placeholder="Buscar lead, imóvel, corretor..." class="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+            </div>
+
+            <!-- Filtro de Temperatura/Prioridade -->
+            <select id="filter-priority" onchange="applyFilters()" class="w-full md:w-auto bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="all">Todas as Temperaturas</option>
+                <option value="hot">Quente 🔥</option>
+                <option value="warm">Morno ⚡</option>
+                <option value="cold">Frio ❄️</option>
+            </select>
+
+            <!-- Filtro de Corretores -->
+            <select id="filter-agent" onchange="applyFilters()" class="w-full md:w-auto bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="all">Todos os Corretores</option>
+            </select>
+
+            <!-- Filtro de Tags -->
+            <select id="filter-tag" onchange="applyFilters()" class="w-full md:w-auto bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="all">Todas as Tags</option>
+                <option value="Investidor">Investidor</option>
+                <option value="Financiamento">Financiamento</option>
+                <option value="Permuta">Permuta</option>
+                <option value="Primeiro Imóvel">1º Imóvel</option>
+            </select>
+        </div>
+
+        <!-- Ações do Sistema -->
+        <div class="flex items-center gap-2 flex-wrap">
+            <button id="btn-sync-drive" class="hidden text-xs bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 px-2.5 py-1.5 rounded transition font-semibold flex items-center gap-1.5" onclick="syncWithGoogleDrive()">
+                <i class="fa-solid fa-cloud-arrow-up animate-bounce"></i> Salvar no Google Drive
+            </button>
+            <button onclick="syncWithGoogleSheets()" class="text-xs bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 px-2.5 py-1.5 rounded transition font-semibold flex items-center gap-1.5">
+                <i class="fa-solid fa-arrows-rotate"></i> Sincronizar Planilha
+            </button>
+            <button onclick="exportJSONBackup()" class="text-xs text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/40 border border-indigo-900 px-2.5 py-1.5 rounded transition" title="Fazer download de backup total">
+                <i class="fa-solid fa-file-export mr-1"></i> Exportar Backup
+            </button>
+            <button onclick="triggerImportFileInput()" class="text-xs text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/40 border border-indigo-900 px-2.5 py-1.5 rounded transition" title="Restaurar backup do app">
+                <i class="fa-solid fa-file-import mr-1"></i> Importar Backup
+            </button>
+            <input type="file" id="import-json-file" accept=".json" class="hidden" onchange="importJSONBackup(event)">
+            
+            <button onclick="triggerClearAll()" class="text-xs text-rose-400 hover:text-rose-300 border border-rose-950/50 hover:border-rose-900 px-2.5 py-1.5 rounded transition">
+                <i class="fa-solid fa-trash-can mr-1"></i> Limpar Tudo
+            </button>
+        </div>
+    </div>
+
+    <!-- Kanban Board Container -->
+    <main class="flex-1 overflow-x-auto p-6 bg-slate-900 flex gap-4 items-stretch custom-scrollbar">
+        <div id="kanban-board" class="flex gap-4 h-full items-stretch"></div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 flex items-center p-4 space-x-3 bg-slate-950 border border-indigo-500 text-slate-100 rounded-xl shadow-2xl shadow-indigo-500/10">
+        <span class="text-indigo-500 font-bold" id="toast-icon"><i class="fa-solid fa-circle-check"></i></span>
+        <p class="text-sm font-medium" id="toast-message">Mensagem de alerta!</p>
+    </div>
+
+    <!-- Modal de Confirmação Customizado -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl p-6 space-y-4">
+            <div class="flex items-center gap-3 text-rose-500">
+                <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+                <h4 class="text-lg font-bold text-white">Atenção!</h4>
+            </div>
+            <p id="confirm-message" class="text-sm text-slate-300">Tem certeza de que deseja realizar esta ação?</p>
+            <div class="flex justify-end gap-3 pt-2">
+                <button onclick="handleConfirmResponse(false)" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg text-sm transition font-medium">Cancelar</button>
+                <button id="btn-confirm-accept" onclick="handleConfirmResponse(true)" class="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm transition font-medium">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Credenciais da Nuvem (Google Cloud) -->
+    <div id="cloud-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl transition-all scale-95 opacity-0 duration-200" id="cloud-modal-container">
+            <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                <div class="flex items-center gap-2">
+                    <div class="bg-indigo-600/20 text-indigo-400 p-2 rounded-lg">
+                        <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-white">Configurações Google Cloud</h3>
+                        <p class="text-xs text-slate-400">Ative seu ecossistema seguro no Google Drive</p>
+                    </div>
+                </div>
+                <button onclick="closeCloudModal()" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 text-xs text-slate-300 leading-relaxed max-h-[75vh] overflow-y-auto custom-scrollbar">
+                
+                <!-- Alerta Inteligente de Execução via Arquivo Local -->
+                <div id="local-protocol-warning" class="hidden bg-amber-950/40 border border-amber-600/50 p-3.5 rounded-xl text-amber-300 space-y-1.5">
+                    <h5 class="font-bold flex items-center gap-1.5 text-[12px]">
+                        <i class="fa-solid fa-circle-exclamation"></i> Diagnóstico: Execução Local Detectada (file://)
+                    </h5>
+                    <p class="text-[11px] leading-relaxed">
+                        Como você está abrindo o arquivo diretamente do seu computador, o login da Google Cloud **não funcionará** devido às regras de segurança de redirecionamento do Google.
+                    </p>
+                    <p class="text-[11px] font-semibold">Como fazer funcionar:</p>
+                    <ul class="list-disc pl-4 space-y-1 text-[11px]">
+                        <li>Publique o arquivo no **GitHub Pages** de forma gratuita.</li>
+                        <li>Rode um servidor local básico no seu editor de código (ex: extensão **Live Server** no VS Code).</li>
+                        <li>Isso garantirá um endereço oficial (ex: <code class="bg-slate-950 px-1 py-0.5 rounded text-amber-400">http://localhost:5500</code>) que a API da Google aceita para logins.</li>
+                    </ul>
+                </div>
+
+                <p>Por padrão, o app roda usando chaves demonstrativas públicas de sandbox. Para sua segurança e privacidade permanentes, configure suas próprias chaves do Google Cloud:</p>
+                
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Google OAuth Client ID</label>
+                        <input type="text" id="g-client-id" placeholder="Ex: 123456789-abc.apps.googleusercontent.com" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Google API Key</label>
+                        <input type="password" id="g-api-key" placeholder="Sua Google API Key de Acesso" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+
+                <div class="bg-indigo-950/40 border border-indigo-900/50 p-4 rounded-xl space-y-2 text-[11px]">
+                    <h4 class="font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-info"></i> Como criar minhas chaves gratuitas?
+                    </h4>
+                    <ol class="list-decimal pl-4 space-y-1 text-slate-400">
+                        <li>Acesse o <a href="https://console.cloud.google.com" target="_blank" class="text-indigo-400 underline">Google Cloud Console</a>.</li>
+                        <li>Crie um projeto rápido chamado "ImobiFlow".</li>
+                        <li>Vá em <strong>APIs e Serviços</strong> &gt; Ative a API do <strong>Google Drive API</strong>.</li>
+                        <li>Na aba <strong>Tela de consentimento OAuth</strong>, configure como de tipo "Externo".</li>
+                        <li>Em <strong>Credenciais</strong>, crie uma <strong>Chave de API</strong> e um <strong>ID do cliente OAuth</strong>.</li>
+                    </ol>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-3 border-t border-slate-800">
+                    <button type="button" onclick="closeCloudModal()" class="px-4 py-2 bg-slate-900 border border-slate-700 hover:bg-slate-800 rounded-lg text-sm text-slate-300 font-medium transition">Cancelar</button>
+                    <button type="button" onclick="saveCloudCredentials()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium shadow-md shadow-indigo-600/10 transition">Salvar Chaves Privadas</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Integração Google Sheets -->
+    <div id="sheets-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl transition-all scale-95 opacity-0 duration-200" id="sheets-modal-container">
+            <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                <div class="flex items-center gap-2">
+                    <div class="bg-emerald-600/20 text-emerald-400 p-2 rounded-lg">
+                        <i class="fa-solid fa-file-excel text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-white">Integração com Google Sheets</h3>
+                        <p class="text-xs text-slate-400">Trabalhe e analise seus Leads direto em planilhas virtuais</p>
+                    </div>
+                </div>
+                <button onclick="closeSheetsModal()" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-6 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Link da Planilha Google (para acesso rápido)</label>
+                        <input type="text" id="sheets-url-input" placeholder="https://docs.google.com/spreadsheets/d/..." class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">URL da API (Google Apps Script) para Sincronização de Dados</label>
+                        <input type="text" id="sheets-script-input" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3 p-4 bg-slate-900/60 rounded-xl border border-slate-800">
+                    <div class="space-y-0.5">
+                        <h4 class="text-xs font-bold text-slate-300">Alternativa Offline Instantânea</h4>
+                        <p class="text-[11px] text-slate-500">Gere um arquivo que você pode importar no Excel ou Sheets</p>
+                    </div>
+                    <button onclick="exportToCSV()" class="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 font-medium px-4 py-2 rounded-lg text-xs transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-csv text-sm"></i> Exportar Leads para CSV
+                    </button>
+                </div>
+
+                <div class="border border-slate-800 rounded-xl overflow-hidden bg-slate-900/30">
+                    <button onclick="toggleAccordion('instructions-body')" class="w-full p-4 flex justify-between items-center hover:bg-slate-900/50 transition">
+                        <span class="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-circle-question"></i> Como configurar a Sincronização?
+                        </span>
+                        <i id="accordion-arrow" class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform duration-200"></i>
+                    </button>
+                    <div id="instructions-body" class="hidden p-4 border-t border-slate-800 space-y-4 text-xs text-slate-300 leading-relaxed">
+                        <p>Para fazer as informações do App irem diretamente para a planilha, siga os seguintes passos:</p>
+                        <ol class="list-decimal pl-4 space-y-2">
+                            <li>Crie uma nova <strong>Planilha Google</strong>.</li>
+                            <li>No menu superior, vá em <strong>Extensões</strong> &gt; <strong>Apps Script</strong>.</li>
+                            <li>Substitua todo o código que aparecer lá pelo código fornecido abaixo.</li>
+                            <li>Clique no botão de salvar e depois em <strong>Implantar</strong> &gt; <strong>Nova implantação</strong>.</li>
+                            <li>Escolha o tipo: <strong>App da Web</strong>. Em <i>"Quem pode acessar"</i>, mude para <strong>"Qualquer pessoa"</strong>.</li>
+                            <li>Copie o link do App da Web fornecido pela implantação e cole no campo <strong>"URL da API"</strong> acima.</li>
+                        </ol>
+
+                        <div class="space-y-2 mt-2">
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-[10px] text-slate-500 uppercase">Código Apps Script do Google:</span>
+                                <button onclick="copyAppsScriptCode()" class="text-slate-400 hover:text-white flex items-center gap-1 font-semibold text-[10px]">
+                                    <i class="fa-regular fa-copy"></i> Copiar Código
+                                </button>
+                            </div>
+                            <pre id="apps-script-code" class="bg-slate-950 p-3 rounded-lg border border-slate-800 overflow-x-auto text-[10px] text-slate-400 max-h-40 font-mono">
+/* Código para o Apps Script do Google Sheets */
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    
+    sheet.clearContents();
+    sheet.appendRow(["ID", "Data Criacao", "Lead", "WhatsApp", "Corretor", "Imovel", "Valor (R$)", "Fase", "Temperatura", "Acompanhamento", "Tags", "Observacoes"]);
+    
+    data.leads.forEach(function(lead) {
+      sheet.appendRow([
+        lead.id,
+        lead.date || "",
+        lead.name || "",
+        lead.whatsapp || "",
+        lead.agent || "",
+        lead.property || "",
+        lead.value || 0,
+        lead.stage || "",
+        lead.priority || "",
+        lead.followUpDate || "",
+        (lead.tags || []).join(", "),
+        lead.notes || ""
+      ]);
+    });
+    
+    return ContentService.createTextOutput(JSON.stringify({status: "success", count: data.leads.length}))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({status: "error", message: error.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet() {
+  return ContentService.createTextOutput("A API do ImobiFlow está pronta!")
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+                            </pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-800">
+                    <button type="button" onclick="closeSheetsModal()" class="px-4 py-2 bg-slate-900 border border-slate-700 hover:bg-slate-800 rounded-lg text-sm text-slate-300 font-medium transition">Fechar</button>
+                    <button type="button" onclick="saveSheetsSettings()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium shadow-md shadow-emerald-600/10 transition">Salvar Configurações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Formulário de Lead -->
+    <div id="lead-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl transition-all scale-95 opacity-0 duration-200" id="modal-container">
+            <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                <h3 id="modal-title" class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-regular fa-id-card text-indigo-400"></i>
+                    <span>Adicionar Novo Lead</span>
+                </h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form id="lead-form" onsubmit="saveLead(event)" class="p-6 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                <input type="hidden" id="lead-id">
+                
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Nome do Lead *</label>
+                    <input type="text" id="form-name" required placeholder="Ex: Roberto Silva" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">WhatsApp *</label>
+                        <input type="text" id="form-whatsapp" required placeholder="Ex: (47) 99123-4567" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Corretor Responsável</label>
+                        <input type="text" id="form-agent" placeholder="Ex: Sandra Corretora" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Imóvel de Interesse</label>
+                        <input type="text" id="form-property" placeholder="Ex: Ap. 2 quartos - Res. Sol" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Valor de Interesse (R$)</label>
+                        <input type="number" id="form-value" placeholder="Ex: 350000" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Etapa do Funil</label>
+                        <select id="form-stage" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                            <!-- Injetado dinamicamente -->
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Temperatura (Prioridade)</label>
+                        <select id="form-priority" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                            <option value="hot">Quente 🔥</option>
+                            <option value="warm" selected>Morno ⚡</option>
+                            <option value="cold">Frio ❄️</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Acompanhamento (Retorno)</label>
+                        <input type="date" id="form-followup" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Marcadores de Perfil (Tags)</label>
+                    <div class="flex flex-wrap gap-2">
+                        <label class="flex items-center space-x-2 bg-slate-900 border border-slate-700 hover:border-indigo-500/50 px-3 py-1.5 rounded-lg cursor-pointer transition select-none">
+                            <input type="checkbox" name="form-tags" value="Investidor" class="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-xs text-slate-300">Investidor 📈</span>
+                        </label>
+                        <label class="flex items-center space-x-2 bg-slate-900 border border-slate-700 hover:border-indigo-500/50 px-3 py-1.5 rounded-lg cursor-pointer transition select-none">
+                            <input type="checkbox" name="form-tags" value="Financiamento" class="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-xs text-slate-300">Financiamento 🏦</span>
+                        </label>
+                        <label class="flex items-center space-x-2 bg-slate-900 border border-slate-700 hover:border-indigo-500/50 px-3 py-1.5 rounded-lg cursor-pointer transition select-none">
+                            <input type="checkbox" name="form-tags" value="Permuta" class="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-xs text-slate-300">Permuta 🔄</span>
+                        </label>
+                        <label class="flex items-center space-x-2 bg-slate-900 border border-slate-700 hover:border-indigo-500/50 px-3 py-1.5 rounded-lg cursor-pointer transition select-none">
+                            <input type="checkbox" name="form-tags" value="Primeiro Imóvel" class="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-xs text-slate-300">1º Imóvel 🔑</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-square-check text-indigo-400"></i>
+                            Checklist de Atividades
+                        </h4>
+                        <span id="checklist-progress" class="text-[11px] font-mono font-bold text-slate-400 bg-slate-950 px-2 py-0.5 rounded">0/0</span>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <input type="text" id="new-todo-input" placeholder="Nova atividade (ex: Ligar para confirmar horário...)" class="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition">
+                        <button type="button" onclick="addTodoItem()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-lg transition font-semibold">
+                            Adicionar
+                        </button>
+                    </div>
+
+                    <div id="checklist-container" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar"></div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Observações / Histórico de Conversa</label>
+                    <textarea id="form-notes" rows="3" placeholder="Descreva os detalhes da última conversa..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none transition"></textarea>
+                </div>
+
+                <div id="lead-history-section" class="hidden text-[11px] border-t border-slate-800 pt-3 text-slate-500">
+                    <p class="font-bold uppercase tracking-wider text-slate-400 mb-1">Últimas Atualizações do Lead:</p>
+                    <div id="lead-history-list" class="space-y-1 max-h-24 overflow-y-auto custom-scrollbar"></div>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-800">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-900 border border-slate-700 hover:bg-slate-800 rounded-lg text-sm text-slate-300 font-medium transition">Cancelar</button>
+                    <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium shadow-md shadow-indigo-600/10 transition">Salvar Lead</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const STAGES = [
+            { id: 'lead_recebido', name: '1- Lead Recebido', color: 'border-t-sky-500', icon: 'fa-bullhorn' },
+            { id: 'contato_feito', name: '2- Contato Feito', color: 'border-t-blue-500', icon: 'fa-phone-volume' },
+            { id: 'qualificacao', name: '3- Qualificação', color: 'border-t-indigo-500', icon: 'fa-clipboard-question' },
+            { id: 'agendamento', name: '4- Agendamento', color: 'border-t-violet-500', icon: 'fa-calendar-days' },
+            { id: 'visita_feita', name: '5- Visita Feita', color: 'border-t-purple-500', icon: 'fa-house-circle-check' },
+            { id: 'proposta', name: '6- Proposta', color: 'border-t-pink-500', icon: 'fa-file-invoice-dollar' },
+            { id: 'credito', name: '7- Crédito', color: 'border-t-teal-500', icon: 'fa-shield-halved' },
+            { id: 'contrato', name: '8- Contrato', color: 'border-t-emerald-500', icon: 'fa-signature' },
+            { id: 'venda', name: '9- Venda', color: 'border-t-amber-500', icon: 'fa-trophy' }
+        ];
+
+        let leads = [];
+        let currentEditingChecklist = []; 
+        let pendingConfirmCallback = null;
+
+        let tokenClient = null;
+        let googleAccessToken = null;
+        let googleUser = null;
+        let googleFolderId = null;
+        let googleDriveFileId = null;
+
+        let GOOGLE_CLIENT_ID = "616719139886-p7s2e6d9reov7b09pms657t1v7iiafe9.apps.googleusercontent.com"; 
+        let GOOGLE_API_KEY = ""; 
+
+        window.onload = function() {
+            // Verifica o protocolo de execução para diagnóstico da API Google
+            if (window.location.protocol === 'file:') {
+                document.getElementById('local-protocol-warning').classList.remove('hidden');
+            }
+
+            const storedLeads = localStorage.getItem('imobiflow_leads_v2');
+            if (storedLeads) {
+                try {
+                    leads = JSON.parse(storedLeads);
+                } catch(e) {
+                    leads = [];
+                }
+            } else {
+                leads = [];
+                saveToLocalStorage();
+            }
+
+            const savedClientId = localStorage.getItem('imobiflow_g_client_id');
+            const savedApiKey = localStorage.getItem('imobiflow_g_api_key');
+            if (savedClientId) {
+                GOOGLE_CLIENT_ID = savedClientId;
+                document.getElementById('g-client-id').value = savedClientId;
+            }
+            if (savedApiKey) {
+                GOOGLE_API_KEY = savedApiKey;
+                document.getElementById('g-api-key').value = savedApiKey;
+            }
+
+            const savedSheetsUrl = localStorage.getItem('imobiflow_sheets_url');
+            const savedScriptUrl = localStorage.getItem('imobiflow_script_url');
+            if (savedSheetsUrl) document.getElementById('sheets-url-input').value = savedSheetsUrl;
+            if (savedScriptUrl) document.getElementById('sheets-script-input').value = savedScriptUrl;
+
+            renderBoard();
+            renderFilters();
+            updateGlobalStats();
+            populateStageDropdowns();
+
+            // Tenta inicializar APIs e verificar se o usuário já tem uma sessão ativa salva
+            try {
+                gapi.load('client', () => {
+                    initGapiClient();
+                    checkExistingSession();
+                });
+                initGisClient();
+            } catch (err) {
+                console.log("Erro ao carregar SDK Google Client ou segurança bloqueou carregamento local.", err);
+            }
+        };
+
+        function initGapiClient() {
+            gapi.client.init({
+                apiKey: GOOGLE_API_KEY,
+                discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+            }).then(() => {
+                console.log("GAPI inicializado com sucesso.");
+            }).catch(err => {
+                console.log("Erro ao inicializar GAPI Client.", err);
+            });
+        }
+
+        function initGisClient() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CLIENT_ID,
+                scope: 'https://www.googleapis.com/auth/drive.file email profile',
+                callback: (tokenResponse) => {
+                    if (tokenResponse.error !== undefined) {
+                        showToast("Falha na autenticação com o Google", "fa-circle-xmark", "text-rose-500");
+                        throw (tokenResponse);
+                    }
+                    googleAccessToken = tokenResponse.access_token;
+                    const expirationTime = Date.now() + (tokenResponse.expires_in * 1000);
+                    
+                    localStorage.setItem('imobiflow_google_token', googleAccessToken);
+                    localStorage.setItem('imobiflow_google_token_expires', expirationTime);
+                    
+                    hideLoginOverlay();
+                    fetchUserProfile();
+                    findOrCreateDriveFolder();
+                },
+            });
+        }
+
+        function checkExistingSession() {
+            const savedToken = localStorage.getItem('imobiflow_google_token');
+            const expiresAt = localStorage.getItem('imobiflow_google_token_expires');
+            
+            if (savedToken && expiresAt && Date.now() < Number(expiresAt)) {
+                googleAccessToken = savedToken;
+                hideLoginOverlay();
+                fetchUserProfile();
+                findOrCreateDriveFolder();
+            } else {
+                // Caso não tenha sessão ou esteja expirado, mostramos a tela de login
+                showLoginOverlay();
+            }
+        }
+
+        function showLoginOverlay() {
+            const overlay = document.getElementById('google-login-overlay');
+            overlay.classList.remove('hidden');
+            overlay.style.opacity = '1';
+        }
+
+        function hideLoginOverlay() {
+            const overlay = document.getElementById('google-login-overlay');
+            overlay.style.opacity = '0';
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+            }, 300);
+        }
+
+        function googleLogin() {
+            if (window.location.protocol === 'file:') {
+                showToast("Erro: OAuth bloqueado em file://. Use um servidor local.", "fa-triangle-exclamation", "text-amber-500");
+                openCloudModal();
+                return;
+            }
+            if (!tokenClient) {
+                showToast("SDK Google não carregado completamente ainda.", "fa-triangle-exclamation", "text-amber-500");
+                return;
+            }
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        }
+
+        function googleLogout() {
+            googleAccessToken = null;
+            googleUser = null;
+            googleFolderId = null;
+            googleDriveFileId = null;
+            localStorage.removeItem('imobiflow_google_token');
+            localStorage.removeItem('imobiflow_google_token_expires');
+            document.getElementById('google-user-badge').classList.add('hidden');
+            document.getElementById('btn-google-login').classList.remove('hidden');
+            document.getElementById('btn-sync-drive').classList.add('hidden');
+            showLoginOverlay();
+            showToast("Sessão Google encerrada localmente", "fa-right-from-bracket", "text-slate-400");
+        }
+
+        function fetchUserProfile() {
+            fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+            })
+            .then(res => res.json())
+            .then(data => {
+                googleUser = data;
+                document.getElementById('google-user-pic').src = data.picture || 'https://placehold.co/40x40/6366f1/ffffff?text=U';
+                document.getElementById('google-user-name').innerText = data.given_name || data.name || "Minha Conta";
+                document.getElementById('google-user-badge').classList.remove('hidden');
+                document.getElementById('btn-google-login').classList.add('hidden');
+                document.getElementById('btn-sync-drive').classList.remove('hidden');
+                showToast(`Bem-vindo, ${data.given_name}!`, "fa-solid fa-circle-user", "text-emerald-400");
+            })
+            .catch(err => console.error("Erro ao puxar dados do usuário:", err));
+        }
+
+        function findOrCreateDriveFolder() {
+            if (!googleAccessToken) return;
+            showToast("Buscando pasta Imobiflow_data no Drive...", "fa-folder-open");
+            
+            // Busca se já existe a pasta "Imobiflow_data" no Drive do usuário
+            fetch(`https://www.googleapis.com/drive/v3/files?q=name='Imobiflow_data' and mimeType='application/vnd.google-apps.folder' and trashed=false`, {
+                headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+            })
+            .then(res => res.json())
+            .then(resData => {
+                if (resData.files && resData.files.length > 0) {
+                    googleFolderId = resData.files[0].id;
+                    findOrCreateDriveDatabaseInFolder();
+                } else {
+                    createDriveFolder();
+                }
+            })
+            .catch(err => {
+                console.error("Erro ao procurar pasta no Drive:", err);
+                showToast("Erro ao autenticar com o Drive. Verifique suas credenciais.", "fa-circle-xmark", "text-rose-500");
+            });
+        }
+
+        function createDriveFolder() {
+            showToast("Criando pasta 'Imobiflow_data' no seu Drive...", "fa-folder-plus");
+            
+            const folderMetadata = {
+                name: 'Imobiflow_data',
+                mimeType: 'application/vnd.google-apps.folder'
+            };
+
+            fetch('https://www.googleapis.com/drive/v3/files', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${googleAccessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(folderMetadata)
+            })
+            .then(res => res.json())
+            .then(folder => {
+                googleFolderId = folder.id;
+                findOrCreateDriveDatabaseInFolder();
+            })
+            .catch(err => console.error("Erro ao criar pasta 'Imobiflow_data' no Drive:", err));
+        }
+
+        function findOrCreateDriveDatabaseInFolder() {
+            if (!googleAccessToken || !googleFolderId) return;
+            
+            // Busca o arquivo imobiflow_database.json especificamente dentro da pasta criada/localizada
+            fetch(`https://www.googleapis.com/drive/v3/files?q=name='imobiflow_database.json' and '${googleFolderId}' in parents and trashed=false`, {
+                headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+            })
+            .then(res => res.json())
+            .then(resData => {
+                if (resData.files && resData.files.length > 0) {
+                    googleDriveFileId = resData.files[0].id;
+                    loadFromGoogleDrive();
+                } else {
+                    createDriveDatabaseInFolder();
+                }
+            })
+            .catch(err => console.error("Erro ao buscar base dentro da pasta:", err));
+        }
+
+        function createDriveDatabaseInFolder() {
+            showToast("Criando base de dados dentro de Imobiflow_data...", "fa-cloud");
+            
+            const metadata = {
+                name: 'imobiflow_database.json',
+                mimeType: 'application/json',
+                parents: [googleFolderId]
+            };
+            
+            const form = new FormData();
+            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            form.append('file', new Blob([JSON.stringify({ leads: leads })], { type: 'application/json' }));
+
+            fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${googleAccessToken}` },
+                body: form
+            })
+            .then(res => res.json())
+            .then(file => {
+                googleDriveFileId = file.id;
+                showToast("Sincronização configurada com êxito no Drive!", "fa-circle-check", "text-emerald-400");
+            })
+            .catch(err => console.error("Erro ao criar arquivo de dados no drive:", err));
+        }
+
+        function loadFromGoogleDrive() {
+            if (!googleDriveFileId || !googleAccessToken) return;
+            fetch(`https://www.googleapis.com/drive/v3/files/${googleDriveFileId}?alt=media`, {
+                headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data && Array.isArray(data.leads)) {
+                    leads = data.leads;
+                    saveToLocalStorage();
+                    renderBoard();
+                    renderFilters();
+                    updateGlobalStats();
+                    showToast("Dados atualizados da sua Nuvem Google Drive!", "fa-cloud-arrow-down", "text-emerald-400");
+                }
+            })
+            .catch(err => {
+                console.error("Erro ao baixar dados do Drive:", err);
+                showToast("Erro ao carregar dados do seu Drive.", "fa-triangle-exclamation", "text-amber-500");
+            });
+        }
+
+        function syncWithGoogleDrive() {
+            if (!googleDriveFileId || !googleAccessToken) {
+                return;
+            }
+            fetch(`https://www.googleapis.com/upload/drive/v3/files/${googleDriveFileId}?uploadType=media`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${googleAccessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ leads: leads })
+            })
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error("Falha no upload");
+                }
+            })
+            .catch(err => {
+                console.error("Erro ao sincronizar com Google Drive:", err);
+            });
+        }
+
+        function requestUserConfirmation(message, onConfirm) {
+            document.getElementById('confirm-message').innerText = message;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+            pendingConfirmCallback = onConfirm;
+        }
+
+        function handleConfirmResponse(approved) {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            if (approved && pendingConfirmCallback) {
+                pendingConfirmCallback();
+            }
+            pendingConfirmCallback = null;
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('imobiflow_leads_v2', JSON.stringify(leads));
+        }
+
+        function populateStageDropdowns() {
+            const dropdown = document.getElementById('form-stage');
+            dropdown.innerHTML = '';
+            STAGES.forEach(stage => {
+                dropdown.innerHTML += `<option value="${stage.id}">${stage.name}</option>`;
+            });
+        }
+
+        function updateGlobalStats() {
+            let activePipeline = 0;
+            let activeCount = 0;
+            let salesVolume = 0;
+            let pendingTodayCount = 0;
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            leads.forEach(lead => {
+                const leadVal = Number(lead.value) || 0;
+                if (lead.stage === 'venda') {
+                    salesVolume += leadVal;
+                } else {
+                    activePipeline += leadVal;
+                    activeCount++;
+                }
+                if (lead.stage !== 'venda' && lead.followUpDate && lead.followUpDate <= todayStr) {
+                    pendingTodayCount++;
+                }
+            });
+
+            document.getElementById('stat-pipeline-val').innerText = formatCurrency(activePipeline);
+            document.getElementById('stat-active-count').innerText = activeCount;
+            document.getElementById('stat-sales-val').innerText = formatCurrency(salesVolume);
+            document.getElementById('stat-pending-today').innerText = pendingTodayCount;
+        }
+
+        function formatCurrency(val) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val);
+        }
+
+        function renderFilters() {
+            const agentFilter = document.getElementById('filter-agent');
+            const uniqueAgents = [...new Set(leads.map(lead => lead.agent).filter(Boolean))];
+            let html = '<option value="all">Todos os Corretores</option>';
+            uniqueAgents.forEach(agent => {
+                html += `<option value="${agent}">${agent}</option>`;
+            });
+            agentFilter.innerHTML = html;
+        }
+
+        function applyFilters() {
+            renderBoard();
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('kanban-board');
+            board.innerHTML = '';
+
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const priorityFilter = document.getElementById('filter-priority').value;
+            const agentFilter = document.getElementById('filter-agent').value;
+            const tagFilter = document.getElementById('filter-tag').value;
+
+            STAGES.forEach(stage => {
+                const stageLeads = leads.filter(lead => {
+                    if (lead.stage !== stage.id) return false;
+                    const matchesSearch = !searchTerm || 
+                        lead.name.toLowerCase().includes(searchTerm) || 
+                        (lead.property && lead.property.toLowerCase().includes(searchTerm)) ||
+                        (lead.agent && lead.agent.toLowerCase().includes(searchTerm));
+                    const matchesPriority = priorityFilter === 'all' || lead.priority === priorityFilter;
+                    const matchesAgent = agentFilter === 'all' || lead.agent === agentFilter;
+                    const matchesTag = tagFilter === 'all' || (lead.tags && lead.tags.includes(tagFilter));
+                    return matchesSearch && matchesPriority && matchesAgent && matchesTag;
+                });
+
+                const colSum = stageLeads.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+
+                const colHTML = `
+                    <div class="w-80 shrink-0 bg-slate-950/85 border border-slate-800 rounded-xl flex flex-col h-full shadow-lg overflow-hidden transition"
+                         ondragover="allowDrop(event)"
+                         ondragenter="dragEnter(event)"
+                         ondragleave="dragLeave(event)"
+                         ondrop="drop(event, '${stage.id}')"
+                         id="col-${stage.id}">
+                        <div class="p-4 border-b border-slate-800/80 border-t-4 ${stage.color} rounded-t-xl flex flex-col gap-1 shrink-0">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-semibold text-xs text-slate-100 flex items-center gap-1.5 uppercase tracking-wide">
+                                    <i class="fa-solid ${stage.icon} text-[10px] text-slate-400"></i>
+                                    ${stage.name}
+                                </h3>
+                                <span class="bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-full font-bold">
+                                    ${stageLeads.length}
+                                </span>
+                            </div>
+                            <div class="text-xs text-indigo-400 font-semibold mt-1">
+                                Total: ${formatCurrency(colSum)}
+                            </div>
+                        </div>
+                        <div class="flex-1 p-3 space-y-3 overflow-y-auto custom-scrollbar bg-slate-950/20" id="list-${stage.id}">
+                            ${stageLeads.length === 0 ? `
+                                <div class="h-32 flex flex-col items-center justify-center text-center p-4 border border-dashed border-slate-800/80 rounded-lg">
+                                    <p class="text-xs text-slate-500 font-medium">Sem leads nesta etapa</p>
+                                </div>
+                            ` : stageLeads.map(lead => renderLeadCard(lead)).join('')}
+                        </div>
+                    </div>
+                `;
+                board.innerHTML += colHTML;
+            });
+        }
+
+        function renderLeadCard(lead) {
+            let priorityBadge = '';
+            let priorityClass = '';
+            
+            if (lead.priority === 'hot') {
+                priorityBadge = 'Quente 🔥';
+                priorityClass = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+            } else if (lead.priority === 'warm') {
+                priorityBadge = 'Morno ⚡';
+                priorityClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+            } else {
+                priorityBadge = 'Frio ❄️';
+                priorityClass = 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+            }
+
+            const totalTodos = lead.checklist ? lead.checklist.length : 0;
+            const completedTodos = lead.checklist ? lead.checklist.filter(t => t.completed).length : 0;
+            const checklistProgressText = totalTodos > 0 ? `${completedTodos}/${totalTodos} concluídas` : '';
+
+            let tagBadgesHTML = '';
+            if (lead.tags && lead.tags.length > 0) {
+                tagBadgesHTML = `<div class="flex flex-wrap gap-1 mt-1 mb-2">`;
+                lead.tags.forEach(tag => {
+                    tagBadgesHTML += `<span class="text-[9px] bg-slate-800 text-indigo-300 border border-slate-700 px-1.5 py-0.5 rounded font-medium">${tag}</span>`;
+                });
+                tagBadgesHTML += `</div>`;
+            }
+
+            let followUpHTML = '';
+            if (lead.stage !== 'venda' && lead.followUpDate) {
+                const todayStr = new Date().toISOString().split('T')[0];
+                let alertClass = 'text-slate-500';
+                let alertText = `Retorno: ${formatDate(lead.followUpDate)}`;
+                
+                if (lead.followUpDate < todayStr) {
+                    alertClass = 'text-rose-400 font-bold bg-rose-950/25 border border-rose-900/40 px-1.5 py-0.5 rounded animate-pulse';
+                    alertText = `⚠️ Atrasado: ${formatDate(lead.followUpDate)}`;
+                } else if (lead.followUpDate === todayStr) {
+                    alertClass = 'text-amber-400 font-bold bg-amber-950/25 border border-amber-900/40 px-1.5 py-0.5 rounded';
+                    alertText = `📅 Retorno Hoje!`;
+                }
+                followUpHTML = `
+                    <div class="text-[10px] ${alertClass} flex items-center gap-1 mt-1">
+                        <i class="fa-regular fa-clock"></i>
+                        <span>${alertText}</span>
+                    </div>
+                `;
+            }
+
+            const rawPhone = lead.whatsapp.replace(/\D/g, '');
+            const formattedPhone = rawPhone.length === 11 || rawPhone.length === 10 ? '55' + rawPhone : rawPhone;
+            const waUrl = `https://wa.me/${formattedPhone}`;
+
+            let stageOptionsHTML = STAGES.map(s => 
+                `<option value="${s.id}" ${s.id === lead.stage ? 'selected' : ''}>Mover para: ${s.name}</option>`
+            ).join('');
+
+            return `
+                <div class="bg-slate-900 border border-slate-800 hover:border-indigo-500/50 p-3.5 rounded-xl shadow-md hover:shadow-lg transition cursor-grab active:cursor-grabbing group relative animate-fadeIn"
+                     draggable="true"
+                     ondragstart="dragStart(event, '${lead.id}')"
+                     id="card-${lead.id}">
+                    <div class="flex items-center justify-between gap-2 mb-1.5">
+                        <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${priorityClass}">
+                            ${priorityBadge}
+                        </span>
+                        <span class="text-[10px] text-slate-500">
+                            Cad: ${formatDate(lead.date)}
+                        </span>
+                    </div>
+
+                    <h4 class="font-bold text-sm text-slate-200 group-hover:text-indigo-400 transition mb-1 leading-tight">
+                        ${lead.name}
+                    </h4>
+
+                    ${tagBadgesHTML}
+
+                    ${lead.property ? `
+                        <p class="text-xs text-slate-400 mb-1 flex items-center gap-1 truncate">
+                            <i class="fa-solid fa-house-chimney text-[10px] text-slate-500 shrink-0"></i>
+                            ${lead.property}
+                        </p>
+                    ` : ''}
+
+                    ${lead.value ? `
+                        <p class="text-xs text-indigo-400 font-bold mb-2">
+                            ${formatCurrency(lead.value)}
+                        </p>
+                    ` : ''}
+
+                    ${totalTodos > 0 ? `
+                        <div class="flex items-center justify-between bg-slate-950/50 px-2 py-1 rounded text-[10px] text-slate-400 mb-2 border border-slate-800/45">
+                            <span class="flex items-center gap-1 font-semibold">
+                                <i class="fa-regular fa-square-check text-indigo-400"></i>
+                                Tarefas:
+                            </span>
+                            <span class="font-mono font-bold">${checklistProgressText}</span>
+                        </div>
+                    ` : ''}
+
+                    ${lead.notes ? `
+                        <div class="bg-slate-950/30 border border-slate-800/40 p-2 rounded-lg text-[10px] text-slate-400 mb-2 max-h-16 overflow-y-auto custom-scrollbar">
+                            ${lead.notes}
+                        </div>
+                    ` : ''}
+
+                    <div class="border-t border-slate-800/50 pt-2 flex flex-col gap-1.5">
+                        <div class="flex items-center justify-between text-[10px] text-slate-400">
+                            <span class="truncate">Corretor: <strong class="text-slate-300 font-medium">${lead.agent || 'Sem repasse'}</strong></span>
+                        </div>
+                        ${followUpHTML}
+                    </div>
+
+                    <div class="mt-2 block lg:hidden">
+                        <select onchange="quickMoveLead('${lead.id}', this.value)" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                            ${stageOptionsHTML}
+                        </select>
+                    </div>
+
+                    <div class="flex items-center justify-between border-t border-slate-800/60 pt-2.5 mt-2 gap-2">
+                        <a href="${waUrl}" target="_blank" 
+                           class="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] px-2.5 py-1.5 rounded-lg flex items-center justify-center gap-1 font-bold transition shadow-md shadow-emerald-950/10 hover:-translate-y-0.5">
+                            <i class="fa-brands fa-whatsapp text-xs"></i>
+                            <span>WhatsApp</span>
+                        </a>
+
+                        <div class="flex items-center gap-0.5">
+                            <button onclick="openModal('${lead.id}')" title="Editar Lead" class="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-indigo-400 rounded-lg transition">
+                                <i class="fa-regular fa-pen-to-square text-xs"></i>
+                            </button>
+                            <button onclick="triggerDeleteLead('${lead.id}')" title="Excluir Lead" class="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded-lg transition">
+                                <i class="fa-regular fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const parts = dateStr.split('-');
+            if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}`;
+            }
+            return dateStr;
+        }
+
+        let draggedCardId = null;
+
+        function dragStart(e, id) {
+            draggedCardId = id;
+            e.dataTransfer.setData('text/plain', id);
+            setTimeout(() => {
+                const el = document.getElementById(`card-${id}`);
+                if (el) el.classList.add('opacity-40');
+            }, 0);
+        }
+
+        function allowDrop(e) {
+            e.preventDefault();
+        }
+
+        function dragEnter(e) {
+            e.preventDefault();
+            const col = e.currentTarget;
+            if (col && col.classList.contains('bg-slate-950/85')) {
+                col.classList.add('column-drag-over');
+            }
+        }
+
+        function dragLeave(e) {
+            const col = e.currentTarget;
+            if (col) {
+                col.classList.remove('column-drag-over');
+            }
+        }
+
+        function drop(e, targetStageId) {
+            e.preventDefault();
+            const col = e.currentTarget;
+            if (col) {
+                col.classList.remove('column-drag-over');
+            }
+            const id = e.dataTransfer.getData('text/plain') || draggedCardId;
+            if (!id) return;
+            moveLeadToStage(id, targetStageId);
+            draggedCardId = null;
+        }
+
+        function quickMoveLead(id, targetStageId) {
+            moveLeadToStage(id, targetStageId);
+        }
+
+        function moveLeadToStage(id, targetStageId) {
+            const leadIndex = leads.findIndex(l => l.id === id);
+            if (leadIndex !== -1) {
+                const oldStage = leads[leadIndex].stage;
+                if (oldStage !== targetStageId) {
+                    leads[leadIndex].stage = targetStageId;
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const targetStageName = STAGES.find(s => s.id === targetStageId)?.name || 'Nova Etapa';
+                    
+                    if (!leads[leadIndex].history) leads[leadIndex].history = [];
+                    leads[leadIndex].history.push({
+                        date: todayStr,
+                        text: `Movido para: ${targetStageName}`
+                    });
+
+                    if (targetStageId === 'venda') {
+                        showToast(`Parabéns! Venda realizada com ${leads[leadIndex].name}! 🎉`, 'fa-trophy', 'text-amber-500');
+                    } else {
+                        showToast(`Lead ${leads[leadIndex].name} movido para: ${targetStageName}`, 'fa-truck-ramp-box');
+                    }
+                    
+                    saveToLocalStorage();
+                    renderBoard();
+                    updateGlobalStats();
+                    autoSyncIfEnabled();
+                }
+            }
+        }
+
+        function showToast(message, icon = 'fa-circle-check', colorClass = 'text-indigo-500') {
+            const toast = document.getElementById('toast');
+            const tMessage = document.getElementById('toast-message');
+            const tIcon = document.getElementById('toast-icon');
+
+            tMessage.innerText = message;
+            tIcon.className = `${colorClass} font-bold`;
+            tIcon.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3500);
+        }
+
+        function openModal(id = null) {
+            const modal = document.getElementById('lead-modal');
+            const container = document.getElementById('modal-container');
+            const form = document.getElementById('lead-form');
+            form.reset();
+
+            document.querySelectorAll('input[name="form-tags"]').forEach(cb => cb.checked = false);
+            document.getElementById('lead-id').value = id || '';
+            currentEditingChecklist = [];
+
+            if (id) {
+                document.getElementById('modal-title').innerText = 'Ficha Completa do Lead';
+                const lead = leads.find(l => l.id === id);
+                if (lead) {
+                    document.getElementById('form-name').value = lead.name || '';
+                    document.getElementById('form-whatsapp').value = lead.whatsapp || '';
+                    document.getElementById('form-agent').value = lead.agent || '';
+                    document.getElementById('form-property').value = lead.property || '';
+                    document.getElementById('form-value').value = lead.value || '';
+                    document.getElementById('form-stage').value = lead.stage || 'lead_recebido';
+                    document.getElementById('form-priority').value = lead.priority || 'warm';
+                    document.getElementById('form-followup').value = lead.followUpDate || '';
+                    document.getElementById('form-notes').value = lead.notes || '';
+
+                    if (lead.tags && Array.isArray(lead.tags)) {
+                        document.querySelectorAll('input[name="form-tags"]').forEach(cb => {
+                            if (lead.tags.includes(cb.value)) cb.checked = true;
+                        });
+                    }
+
+                    if (lead.checklist) {
+                        currentEditingChecklist = JSON.parse(JSON.stringify(lead.checklist));
+                    }
+
+                    const historySection = document.getElementById('lead-history-section');
+                    const historyList = document.getElementById('lead-history-list');
+                    historySection.classList.remove('hidden');
+                    historyList.innerHTML = '';
+                    
+                    if (lead.history && lead.history.length > 0) {
+                        lead.history.forEach(item => {
+                            historyList.innerHTML += `
+                                <div class="flex justify-between border-b border-slate-900 py-1 font-mono">
+                                    <span class="text-indigo-400 shrink-0">${formatDate(item.date)}</span>
+                                    <span class="text-slate-400 text-right truncate pl-2">${item.text}</span>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        historyList.innerHTML = '<div class="text-slate-600 italic">Sem eventos registrados</div>';
+                    }
+                }
+            } else {
+                document.getElementById('modal-title').innerText = 'Adicionar Novo Lead';
+                document.getElementById('form-stage').value = 'lead_recebido';
+                document.getElementById('form-priority').value = 'warm';
+                document.getElementById('form-followup').value = '';
+                document.getElementById('lead-history-section').classList.add('hidden');
+            }
+
+            renderChecklistUI();
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                container.classList.remove('scale-95', 'opacity-0');
+                container.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('lead-modal');
+            const container = document.getElementById('modal-container');
+            container.classList.remove('scale-100', 'opacity-100');
+            container.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        function renderChecklistUI() {
+            const container = document.getElementById('checklist-container');
+            const progress = document.getElementById('checklist-progress');
+            container.innerHTML = '';
+            
+            const total = currentEditingChecklist.length;
+            const completed = currentEditingChecklist.filter(t => t.completed).length;
+            progress.innerText = `${completed}/${total}`;
+
+            if (total === 0) {
+                container.innerHTML = '<p class="text-[11px] text-slate-500 italic p-1">Nenhuma atividade agendada.</p>';
+                return;
+            }
+
+            currentEditingChecklist.forEach(item => {
+                container.innerHTML += `
+                    <div class="flex items-center justify-between bg-slate-950 px-3 py-2 rounded-lg border border-slate-800/60 hover:border-slate-800 animate-fadeIn">
+                        <label class="flex items-center space-x-2.5 cursor-pointer flex-1 min-w-0 select-none">
+                            <input type="checkbox" onchange="toggleTodoItem('${item.id}')" ${item.completed ? 'checked' : ''} class="rounded border-slate-800 text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-xs text-slate-300 truncate ${item.completed ? 'line-through text-slate-500' : ''}">${item.text}</span>
+                        </label>
+                        <button type="button" onclick="deleteTodoItem('${item.id}')" class="text-slate-500 hover:text-rose-400 transition ml-2">
+                            <i class="fa-regular fa-trash-can text-[11px]"></i>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+
+        function addTodoItem() {
+            const input = document.getElementById('new-todo-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const newItem = {
+                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                text: text,
+                completed: false
+            };
+
+            currentEditingChecklist.push(newItem);
+            input.value = '';
+            renderChecklistUI();
+        }
+
+        function toggleTodoItem(id) {
+            const index = currentEditingChecklist.findIndex(t => t.id === id);
+            if (index !== -1) {
+                currentEditingChecklist[index].completed = !currentEditingChecklist[index].completed;
+                renderChecklistUI();
+            }
+        }
+
+        function deleteTodoItem(id) {
+            currentEditingChecklist = currentEditingChecklist.filter(t => t.id !== id);
+            renderChecklistUI();
+        }
+
+        function saveLead(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('lead-id').value;
+            const name = document.getElementById('form-name').value;
+            const whatsapp = document.getElementById('form-whatsapp').value;
+            const agent = document.getElementById('form-agent').value;
+            const property = document.getElementById('form-property').value;
+            const value = parseFloat(document.getElementById('form-value').value) || 0;
+            const stage = document.getElementById('form-stage').value;
+            const priority = document.getElementById('form-priority').value;
+            const followUpDate = document.getElementById('form-followup').value;
+            const notes = document.getElementById('form-notes').value;
+
+            const tags = [];
+            document.querySelectorAll('input[name="form-tags"]:checked').forEach(cb => {
+                tags.push(cb.value);
+            });
+
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            if (id) {
+                const index = leads.findIndex(l => l.id === id);
+                if (index !== -1) {
+                    const originalLead = leads[index];
+                    const history = originalLead.history || [];
+                    
+                    if (originalLead.stage !== stage) {
+                        const targetStageName = STAGES.find(s => s.id === stage)?.name || 'Nova Etapa';
+                        history.push({ date: todayStr, text: `Movido para: ${targetStageName}` });
+                    }
+                    if (originalLead.priority !== priority) {
+                        history.push({ date: todayStr, text: `Prioridade alterada para: ${priority.toUpperCase()}` });
+                    }
+
+                    leads[index] = {
+                        ...originalLead,
+                        name,
+                        whatsapp,
+                        agent,
+                        property,
+                        value,
+                        stage,
+                        priority,
+                        followUpDate,
+                        tags,
+                        checklist: currentEditingChecklist,
+                        notes,
+                        history
+                    };
+                    showToast('Lead atualizado com sucesso!', 'fa-user-pen');
+                }
+            } else {
+                const newLead = {
+                    id: Date.now().toString(),
+                    name,
+                    whatsapp,
+                    agent,
+                    property,
+                    value,
+                    stage,
+                    priority,
+                    followUpDate,
+                    tags,
+                    checklist: currentEditingChecklist,
+                    notes,
+                    date: todayStr,
+                    history: [
+                        { date: todayStr, text: 'Lead cadastrado no sistema' }
+                    ]
+                };
+                leads.push(newLead);
+                showToast('Novo Lead cadastrado!', 'fa-user-plus');
+            }
+
+            saveToLocalStorage();
+            closeModal();
+            renderBoard();
+            renderFilters();
+            updateGlobalStats();
+            autoSyncIfEnabled();
+        }
+
+        function triggerDeleteLead(id) {
+            const lead = leads.find(l => l.id === id);
+            if (!lead) return;
+
+            requestUserConfirmation(`Tem certeza que deseja remover o lead "${lead.name}" do seu funil?`, () => {
+                leads = leads.filter(l => l.id !== id);
+                saveToLocalStorage();
+                renderBoard();
+                renderFilters();
+                updateGlobalStats();
+                showToast('O lead foi excluído do sistema.', 'fa-user-minus', 'text-rose-500');
+                autoSyncIfEnabled();
+            });
+        }
+
+        function triggerClearAll() {
+            requestUserConfirmation("Deseja deletar absolutamente TODOS os leads do seu funil de vendas? Esta ação é irreversível.", () => {
+                leads = [];
+                saveToLocalStorage();
+                renderBoard();
+                renderFilters();
+                updateGlobalStats();
+                showToast('Todos os leads foram removidos.', 'fa-trash-can', 'text-rose-500');
+                autoSyncIfEnabled();
+            });
+        }
+
+        function exportJSONBackup() {
+            if (leads.length === 0) {
+                showToast('Não há dados para exportar.', 'fa-triangle-exclamation', 'text-amber-500');
+                return;
+            }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(leads, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `imobiflow_backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast('Backup JSON exportado!', 'fa-file-shield', 'text-indigo-400');
+        }
+
+        function triggerImportFileInput() {
+            document.getElementById('import-json-file').click();
+        }
+
+        function importJSONBackup(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedLeads = JSON.parse(e.target.result);
+                    if (Array.isArray(importedLeads)) {
+                        leads = importedLeads.map(lead => ({
+                            id: lead.id || Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                            name: lead.name || 'Sem nome',
+                            whatsapp: lead.whatsapp || '',
+                            agent: lead.agent || '',
+                            property: lead.property || '',
+                            value: lead.value || 0,
+                            stage: lead.stage || 'lead_recebido',
+                            priority: lead.priority || 'warm',
+                            followUpDate: lead.followUpDate || '',
+                            tags: lead.tags || [],
+                            checklist: lead.checklist || [],
+                            notes: lead.notes || '',
+                            date: lead.date || new Date().toISOString().split('T')[0],
+                            history: lead.history || []
+                        }));
+
+                        saveToLocalStorage();
+                        renderBoard();
+                        renderFilters();
+                        updateGlobalStats();
+                        showToast('Backup restaurado com sucesso!', 'fa-circle-check', 'text-emerald-400');
+                        autoSyncIfEnabled();
+                    } else {
+                        showToast('Formato de backup inválido.', 'fa-circle-xmark', 'text-rose-500');
+                    }
+                } catch(err) {
+                    showToast('Erro ao ler arquivo de backup.', 'fa-circle-xmark', 'text-rose-500');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function openSheetsModal() {
+            const modal = document.getElementById('sheets-modal');
+            const container = document.getElementById('sheets-modal-container');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                container.classList.remove('scale-95', 'opacity-0');
+                container.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeSheetsModal() {
+            const modal = document.getElementById('sheets-modal');
+            const container = document.getElementById('sheets-modal-container');
+            container.classList.remove('scale-100', 'opacity-100');
+            container.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        function saveSheetsSettings() {
+            const sheetUrl = document.getElementById('sheets-url-input').value.trim();
+            const scriptUrl = document.getElementById('sheets-script-input').value.trim();
+
+            localStorage.setItem('imobiflow_sheets_url', sheetUrl);
+            localStorage.setItem('imobiflow_script_url', scriptUrl);
+
+            showToast('Configurações do Google Sheets salvas!', 'fa-floppy-disk', 'text-emerald-400');
+            closeSheetsModal();
+        }
+
+        function openGoogleSheet() {
+            const url = localStorage.getItem('imobiflow_sheets_url');
+            if (url) {
+                window.open(url, '_blank');
+            } else {
+                showToast('Nenhuma planilha cadastrada! Configure o link primeiro.', 'fa-triangle-exclamation', 'text-amber-500');
+                openSheetsModal();
+            }
+        }
+
+        function openCloudModal() {
+            const modal = document.getElementById('cloud-modal');
+            const container = document.getElementById('cloud-modal-container');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                container.classList.remove('scale-95', 'opacity-0');
+                container.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeCloudModal() {
+            const modal = document.getElementById('cloud-modal');
+            const container = document.getElementById('cloud-modal-container');
+            container.classList.remove('scale-100', 'opacity-100');
+            container.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        function saveCloudCredentials() {
+            const cId = document.getElementById('g-client-id').value.trim();
+            const aKey = document.getElementById('g-api-key').value.trim();
+
+            if (cId) {
+                GOOGLE_CLIENT_ID = cId;
+                localStorage.setItem('imobiflow_g_client_id', cId);
+            }
+            if (aKey) {
+                GOOGLE_API_KEY = aKey;
+                localStorage.setItem('imobiflow_g_api_key', aKey);
+            }
+
+            showToast("Suas chaves do Google Cloud foram atualizadas!", "fa-floppy-disk", "text-indigo-400");
+            closeCloudModal();
+            try {
+                gapi.load('client', initGapiClient);
+                initGisClient();
+            } catch (e) {
+                console.log(e);
+            }
+        }
+
+        function toggleAccordion(id) {
+            const body = document.getElementById(id);
+            const arrow = document.getElementById('accordion-arrow');
+            if (body.classList.contains('hidden')) {
+                body.classList.remove('hidden');
+                arrow.classList.add('rotate-180');
+            } else {
+                body.classList.add('hidden');
+                arrow.classList.remove('rotate-180');
+            }
+        }
+
+        function copyAppsScriptCode() {
+            const codeText = document.getElementById('apps-script-code').innerText;
+            const textarea = document.createElement('textarea');
+            textarea.value = codeText;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('Código copiado!', 'fa-copy', 'text-indigo-400');
+            } catch (err) {
+                showToast('Falha ao copiar código automaticamente.', 'fa-circle-xmark', 'text-rose-500');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function exportToCSV() {
+            if (leads.length === 0) {
+                showToast('Nenhum lead disponível para exportação.', 'fa-exclamation', 'text-amber-400');
+                return;
+            }
+            let csvContent = "\uFEFF"; 
+            csvContent += "ID;Data Criacao;Lead;WhatsApp;Corretor;Imovel;Valor;Fase;Temperatura;Acompanhamento;Tags;Observacoes\n";
+
+            leads.forEach(lead => {
+                const row = [
+                    lead.id,
+                    lead.date || "",
+                    `"${(lead.name || "").replace(/"/g, '""')}"`,
+                    lead.whatsapp || "",
+                    `"${(lead.agent || "").replace(/"/g, '""')}"`,
+                    `"${(lead.property || "").replace(/"/g, '""')}"`,
+                    lead.value || 0,
+                    lead.stage || "",
+                    lead.priority || "",
+                    lead.followUpDate || "",
+                    `"${(lead.tags || []).join(', ')}"`,
+                    `"${(lead.notes || "").replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""')}"`
+                ];
+                csvContent += row.join(";") + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `imobiflow_leads_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('CSV gerado e baixado com sucesso!', 'fa-file-arrow-down', 'text-indigo-400');
+        }
+
+        function syncWithGoogleSheets() {
+            const scriptUrl = localStorage.getItem('imobiflow_script_url');
+            if (!scriptUrl) {
+                showToast('Configure a URL da API para habilitar a sincronização.', 'fa-circle-exclamation', 'text-amber-400');
+                openSheetsModal();
+                return;
+            }
+            showToast('Sincronizando com o Google Sheets...', 'fa-rotate', 'text-emerald-400');
+            fetch(scriptUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ leads: leads })
+            })
+            .then(() => {
+                showToast('Leads sincronizados com a Planilha!', 'fa-cloud-arrow-up', 'text-emerald-400');
+            })
+            .catch(error => {
+                console.error("Erro na Sincronização:", error);
+                showToast('Erro ao sincronizar. Verifique a URL cadastrada.', 'fa-triangle-exclamation', 'text-rose-500');
+            });
+        }
+
+        function autoSyncIfEnabled() {
+            const scriptUrl = localStorage.getItem('imobiflow_script_url');
+            if (scriptUrl) {
+                fetch(scriptUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ leads: leads })
+                }).catch(e => console.log("Auto-sync background error: ", e));
+            }
+            if (googleAccessToken && googleDriveFileId) {
+                syncWithGoogleDrive();
+            }
+        }
+    </script>
+</body>
+</html>
